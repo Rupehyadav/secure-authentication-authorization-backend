@@ -1,3 +1,4 @@
+import requests
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -17,16 +18,28 @@ from .serializers import LoginSerializer
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
+    
+    captcha_token = request.data.get('captcha_token')
+    captcha_url = 'https://www.google.com/recaptcha/api/siteverify'
+    captcha_data = {
+        'secret': settings.RECAPTCHA_SECRET_KEY,
+        'response': captcha_token,
+    }
+
+    captcha_response = requests.post(captcha_url, data=captcha_data)
+    captcha_result = captcha_response.json()
+
+    if not captcha_result.get('success'):
+        return Response({'message': 'Invalid CAPTCHA. Please try again.'}, status=status.HTTP_400_BAD_REQUEST)
+
     serializer = RegistrationSerializer(data=request.data)
     
     if serializer.is_valid():
         user = serializer.save()
         
-        # Generate email verification token
         token = generate_verification_token(user.email)
         verification_url = f"http://localhost:8000/api/users/verify-email/{token}/"
         
-        # Send email with verification link
         send_mail(
             subject='Verify your email',
             message=f'Click the link to verify your email: {verification_url}',
