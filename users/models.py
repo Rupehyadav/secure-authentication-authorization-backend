@@ -14,7 +14,7 @@ class CustomUserManager(BaseUserManager):
             phone_number=phone_number,
         )
         user.set_password(password)
-        user.is_verified = False  # User is not verified initially
+        user.is_verified = False
         user.save(using=self._db)
         return user
 
@@ -27,9 +27,10 @@ class CustomUserManager(BaseUserManager):
         )
         user.is_staff = True
         user.is_superuser = True
-        user.is_verified = True  # Superuser is always verified
+        user.is_verified = True
         user.save(using=self._db)
         return user
+
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
@@ -37,7 +38,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=15, unique=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)  # New field to track email verification
+    is_verified = models.BooleanField(default=False)
 
     objects = CustomUserManager()
 

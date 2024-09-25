@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser
-from django.contrib.auth.hashers import make_password
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -18,14 +17,13 @@ class RegistrationSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        # Create the user with hashed password and default unverified status
         user = CustomUser.objects.create_user(
             email=validated_data['email'],
             username=validated_data['username'],
             phone_number=validated_data['phone_number'],
             password=validated_data['password'],
         )
-        user.is_verified = False  # User is unverified until email verification
+        user.is_verified = False
         user.save()
         return user
 
@@ -58,33 +56,51 @@ def get_tokens_for_user(user):
     }
 
 
+from rest_framework import serializers
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import AuthenticationFailed
+
+
 class LoginSerializer(serializers.Serializer):
     """
-    Serializer for user login, checking for correct credentials and ensuring
-    the user is verified before allowing them to log in.
+    Serializer for user login, checking for correct credentials, ensuring
+    the user is verified before allowing them to log in, and returning JWT tokens.
     """
+
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
+    def get_tokens_for_user(self, user):
+        """
+        This function generates a JWT token (access and refresh) for the user.
+        """
+        refresh = RefreshToken.for_user(user)
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
+
     def validate(self, data):
-        # Authenticate user using Django's built-in authentication method
         email = data.get('email')
         password = data.get('password')
 
-        user = authenticate(email=email, password=password)
+        user = authenticate(username=email, password=password)
         if not user:
             raise AuthenticationFailed('Invalid credentials, please try again.')
 
-        # Check if the user is verified
         if not user.is_verified:
             raise AuthenticationFailed('Email not verified. Please verify your email to log in.')
+
+        tokens = self.get_tokens_for_user(user)
 
         return {
             'email': user.email,
             'username': user.username,
-            'password': user.password,
-            'is_verified': user.is_verified
+            'tokens': tokens
         }
+
+
 
 class EmailVerificationSerializer(serializers.Serializer):
     """
