@@ -19,12 +19,13 @@ from .serializers import LoginSerializer
 @permission_classes([AllowAny])
 def register_user(request):
     
-    captcha_token = request.data.get('captcha_token')
+    captcha_token = request.data.get('capchaToken')
     captcha_url = 'https://www.google.com/recaptcha/api/siteverify'
     captcha_data = {
         'secret': settings.RECAPTCHA_SECRET_KEY,
         'response': captcha_token,
     }
+
 
     captcha_response = requests.post(captcha_url, data=captcha_data)
     captcha_result = captcha_response.json()
