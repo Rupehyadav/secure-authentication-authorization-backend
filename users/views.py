@@ -39,7 +39,8 @@ def register_user(request):
         user = serializer.save()
         
         token = generate_verification_token(user.email)
-        verification_url = f"http://localhost:8000/api/users/verify-email/{token}/"
+        # verification_url = f"http://localhost:8000/api/users/verify-email/{token}/"
+        verification_url = f"http://localhost:5173/verify-email/{token}/"
         
         send_mail(
             subject='Verify your email',
@@ -57,6 +58,7 @@ def register_user(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def verify_email(request, token):
+    print(token)
     email = verify_token(token)
     if email:
         user = get_object_or_404(CustomUser, email=email)
