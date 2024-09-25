@@ -1,5 +1,3 @@
-# users/models.py
-
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
@@ -16,6 +14,7 @@ class CustomUserManager(BaseUserManager):
             phone_number=phone_number,
         )
         user.set_password(password)
+        user.is_verified = False  # User is not verified initially
         user.save(using=self._db)
         return user
 
@@ -28,6 +27,7 @@ class CustomUserManager(BaseUserManager):
         )
         user.is_staff = True
         user.is_superuser = True
+        user.is_verified = True  # Superuser is always verified
         user.save(using=self._db)
         return user
 
@@ -37,11 +37,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=15, unique=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)  # New field to track email verification
 
     objects = CustomUserManager()
 
-    USERNAME_FIELD = 'email'  # Use email as the unique identifier
-    REQUIRED_FIELDS = ['username', 'phone_number']  # Fields required for registration
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username', 'phone_number']
 
     def __str__(self):
         return self.email
