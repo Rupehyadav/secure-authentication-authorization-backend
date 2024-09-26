@@ -16,6 +16,29 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .utils import verify_token
 from rest_framework import status
 from .serializers import LoginSerializer
+import requests
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from django.conf import settings
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.models import User
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.template.loader import render_to_string
+from django.urls import reverse
+
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.models import User
+from django.utils.http import urlsafe_base64_decode
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 
 
@@ -43,7 +66,6 @@ def register_user(request):
         user = serializer.save()
         
         token = generate_verification_token(user.email)
-        # verification_url = f"http://localhost:8000/api/users/verify-email/{token}/"
         verification_url = f"http://localhost:5173/verify-email/{token}/"
         
         send_mail(
@@ -158,3 +180,69 @@ def resend_2fa_code(request):
 
     except CustomUser.DoesNotExist:
         return Response({"error": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """ Reset the password of given user"""
+
+    password = request.data.get('password')
+    uidb64 = request.data.get('uid')
+    token = request.data.get('token')
+
+    try:
+        uid = urlsafe_base64_decode(uidb64).decode()
+        user = User.objects.get(pk=uid)
+
+        if default_token_generator.check_token(user, token):
+            user.set_password(password)
+            user.save()
+            return Response({'message': 'Password has been reset successfully!'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid token or token has expired.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    except User.DoesNotExist:
+        return Response({'error': 'Invalid user.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password(request):
+    email = request.data.get('email')
+    if not email:
+        return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    captcha_token = request.data.get('captchaToken')
+    captcha_url = 'https://www.google.com/recaptcha/api/siteverify'
+    captcha_data = {
+        'secret': settings.RECAPTCHA_SECRET_KEY,
+        'response': captcha_token,
+    }
+
+    captcha_response = requests.post(captcha_url, data=captcha_data)
+    captcha_result = captcha_response.json()
+
+    if not captcha_result.get('success'):
+        return Response({'message': 'Invalid CAPTCHA. Please try again.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({'message': 'User with this email does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+
+    token = default_token_generator.make_token(user)
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+
+    reset_url = f"http://localhost:5173/reset-password/{uid}/{token}/"
+
+    send_mail(
+        subject='Password Reset Request',
+        message=f'Click the link to reset your password: {reset_url}',
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+    return Response({'message': 'A password reset link has been sent to your email.'}, status=status.HTTP_200_OK)
