@@ -40,6 +40,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
 
+    is_2fa_enabled = models.BooleanField(default=False)
+    two_factor_code = models.CharField(max_length=6, blank=True, null=True)
+    two_factor_code_expires = models.DateTimeField(blank=True, null=True)
+
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
