@@ -1,3 +1,4 @@
+import random
 import requests
 from django.utils import timezone
 from rest_framework.response import Response
@@ -15,6 +16,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .utils import verify_token
 from rest_framework import status
 from .serializers import LoginSerializer
+
 
 
 @api_view(['POST'])
@@ -76,14 +78,12 @@ def verify_email(request, token):
 def login_user(request):
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
-        # Check if 2FA is required
         validated_data = serializer.validated_data
+
         if '2fa_required' in validated_data and validated_data['2fa_required']:
-            # 2FA is required, do not return tokens yet, just return a message
             return Response({
                 'message': validated_data['message'],
                 'two_factor_required': True,
-                'two_factor_code': validated_data.get('two_factor_code')  # For debugging (shouldn't be exposed in prod)
             }, status=status.HTTP_200_OK)
         
         return Response(validated_data, status=status.HTTP_200_OK)
@@ -125,19 +125,6 @@ def verify_2fa(request):
         return Response({'message': 'Invalid or expired 2FA code.'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-
-# views.py
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from rest_framework import status
-from django.utils import timezone
-from .models import CustomUser
-# from .utils import generate_2fa_code  # Utility to generate the 2FA code
-import random
-
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_2fa_code(request):
@@ -147,26 +134,26 @@ def resend_2fa_code(request):
     email = request.data.get('email')
 
     try:
-        # Check if the user exists
         user = CustomUser.objects.get(email=email)
 
-        # Check if 2FA is enabled for the user
         if not user.is_2fa_enabled:
             return Response({"message": "2FA is not enabled for this user."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate a new 2FA code
         two_factor_code = str(random.randint(100000, 999999))
         user.two_factor_code = two_factor_code
-        user.two_factor_code_expires = timezone.now() + timezone.timedelta(minutes=10)  # Code expires in 10 minutes
+        user.two_factor_code_expires = timezone.now() + timezone.timedelta(minutes=10)
         user.save()
 
-        # Simulate sending the 2FA code via email (You can implement an email sending mechanism here)
-        # For now, just return the code in the response (in production, you would NOT return the code)
-        # send_mail(subject, message, from_email, [user.email])
+        send_mail(
+            subject="Your 2FA Verification Code",
+            message=f"Your 2FA verification code is {two_factor_code}. This code will expire in 10 minutes.",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
 
         return Response({
             "message": "A new 2FA code has been sent to your email.",
-            "two_factor_code": two_factor_code  # For debugging purposes; remove this in production
         }, status=status.HTTP_200_OK)
 
     except CustomUser.DoesNotExist:

@@ -1,6 +1,8 @@
 import random
 from datetime import timedelta
+from django.conf import settings
 from django.utils import timezone
+from django.core.mail import send_mail
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -79,9 +81,9 @@ class LoginSerializer(serializers.Serializer):
         """
         Generates a 2FA code and sets its expiration.
         """
-        code = str(random.randint(100000, 999999))  # Simple 6-digit code
+        code = str(random.randint(100000, 999999))
         user.two_factor_code = code
-        user.two_factor_code_expires = timezone.now() + timedelta(minutes=10)  # 10 minutes expiry
+        user.two_factor_code_expires = timezone.now() + timedelta(minutes=10)
         user.save()
         return code
 
@@ -96,21 +98,23 @@ class LoginSerializer(serializers.Serializer):
         if not user.is_verified:
             raise AuthenticationFailed('Email not verified. Please verify your email to log in.')
 
-        # Check if 2FA is enabled
         if user.is_2fa_enabled:
-            # Generate a 2FA code and send it (you could send via email or SMS)
             two_factor_code = self.generate_2fa_code(user)
-            
-            # In production, you'd send the code via email/SMS. For now, we'll just return it.
+
+            send_mail(
+                subject="Your 2FA Verification Code",
+                message=f"Your 2FA verification code is {two_factor_code}. This code will expire in 10 minutes.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            ) 
             return {
                 'email': user.email,
                 'username': user.username,
                 '2fa_required': True,
                 'message': '2FA code sent. Please verify the code.',
-                'two_factor_code': two_factor_code  # This should not be returned in production
             }
 
-        # If 2FA is not enabled, generate tokens
         tokens = self.get_tokens_for_user(user)
 
         return {
