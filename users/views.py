@@ -64,7 +64,7 @@ def verify_email(request, token):
     email = verify_token(token)
     if email:
         user = get_object_or_404(CustomUser, email=email)
-        user.is_verified = True  # Mark the user as verified
+        user.is_verified = True
         user.save()
         return Response({'message': 'Email verified successfully!'}, status=200)
     
@@ -78,17 +78,14 @@ def login_user(request):
     if serializer.is_valid():
         # Check if 2FA is required
         validated_data = serializer.validated_data
-        print("========================== cehcking 2f a required or not")
-        print("==================", "2fa_required" in validated_data and validated_data['2fa_required'])
         if '2fa_required' in validated_data and validated_data['2fa_required']:
             # 2FA is required, do not return tokens yet, just return a message
             return Response({
                 'message': validated_data['message'],
-                '2fa_required': True,
+                'two_factor_required': True,
                 'two_factor_code': validated_data.get('two_factor_code')  # For debugging (shouldn't be exposed in prod)
             }, status=status.HTTP_200_OK)
         
-        # If 2FA is not required, return the tokens
         return Response(validated_data, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -119,6 +116,8 @@ def verify_2fa(request):
         user.save()
 
         return Response({
+            'email': user.email,
+            'username': user.username,
             'message': '2FA verification successful.',
             'tokens': tokens
         }, status=status.HTTP_200_OK)
