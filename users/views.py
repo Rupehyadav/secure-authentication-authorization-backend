@@ -124,15 +124,12 @@ def verify_2fa(request):
     except CustomUser.DoesNotExist:
         return Response({'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Check if the 2FA code matches and hasn't expired
     if user.two_factor_code == two_factor_code and timezone.now() <= user.two_factor_code_expires:
-        # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         tokens = {
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
-        # Clear the 2FA code after successful verification
         user.two_factor_code = None
         user.two_factor_code_expires = None
         user.save()
